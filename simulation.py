@@ -1,19 +1,18 @@
 import random
 from config import NUM_TIMESTEPS, MACHINE_CAPACITY
-from thompson_sampling import ACTIONS, action_params, thompson_sampling_select_action, update_thompson_params
+from thompson_sampling import (
+    ACTIONS, action_params, thompson_sampling_select_action, update_thompson_params,
+    treebootstrap_select_action, update_treebootstrap_params, tree_data
+)
 from reward import estimate_reward
 
-def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False):
+def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False, policy="contextual"):
     """
     시뮬레이션 실행
     return: (timestep_logs, th_history)
         - timestep_logs: timestep별 로그
         - th_history: {action: {"timesteps": [...], "mean": [...]}, ...}
     """
-    # 시뮬레이션마다 action_params를 재초기화 하고 싶다면, 여기서 별도 처리를 해야 함
-    # 일단 여기서는 기존전역 action_params 유지한다고 가정
-
-    # 시뮬레이션에서 각 액션 mean 변화를 기록할 로컬 딕셔너리
     local_thompson_history = {a: {"timesteps": [], "mean": []} for a in ACTIONS}
 
     machine_status = {}
@@ -21,17 +20,14 @@ def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False):
     for o in orders:
         orders_by_ts.setdefault(o.order_date, []).append(o)
 
-    model_counts = {}
     total_orders_arrived = 0
-
     timestep_logs = []
 
-    for t in range(num_timesteps+1):
+    for t in range(num_timesteps + 1):
         if t in orders_by_ts:
             for o in orders_by_ts[t]:
                 o.decision_history.append((t, "Arrived"))
                 total_orders_arrived += 1
-                model_counts[o.model_name] = model_counts.get(o.model_name, 0) + 1
 
         # 생산 중인 주문 진행
         finished = []
@@ -41,12 +37,12 @@ def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False):
                 finished.append(onum)
         for fo in finished:
             del machine_status[fo]
-            fo_obj = next((x for x in orders if x.order_no==fo), None)
+            fo_obj = next((x for x in orders if x.order_no == fo), None)
             if fo_obj:
                 fo_obj.finish_time = t
                 fo_obj.is_completed = True
 
-        # 의사결정
+        # 의사결정이 필요한 주문 선정
         decision_needed = []
         for o in orders:
             if o.is_completed:
@@ -60,7 +56,6 @@ def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False):
         available_ratio = (MACHINE_CAPACITY - len(machine_status)) / MACHINE_CAPACITY
 
         for o in decision_needed:
-            # t >= decision_due_date -> Postpone 불가
             if t >= o.decision_due_date:
                 possible_acts = ["Accept", "Reject", "Outsource"]
             else:
@@ -69,10 +64,20 @@ def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False):
             if random_policy:
                 act = random.choice(possible_acts)
             else:
-                act = thompson_sampling_select_action()
-                if act not in possible_acts:
+                if policy == "contextual":
+                    act = thompson_sampling_select_action()
+                    if act not in possible_acts:
+                        act = random.choice(possible_acts)
+                elif policy == "treebootstrap":
+                    context = [t, available_ratio, o.order_date, o.decision_due_date,
+                               o.processing_time, o.due_date, o.revenue, o.risk]
+                    act = treebootstrap_select_action(context)
+                    if act not in possible_acts:
+                        act = random.choice(possible_acts)
+                else:
                     act = random.choice(possible_acts)
 
+            # 머신 용량 체크
             if act == "Accept" and len(machine_status) >= MACHINE_CAPACITY:
                 if t >= o.decision_due_date:
                     act = "Reject"
@@ -81,14 +86,12 @@ def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False):
 
             o.decision_history.append((t, act))
 
-            if total_orders_arrived > 0:
-                model_ratio = model_counts.get(o.model_name, 0) / total_orders_arrived
-            else:
-                model_ratio = 1.0
-
-            # 보상 추정
-            r_est = estimate_reward(o, act, t, available_ratio, model_ratio)
-            update_thompson_params(act, r_est)
+            r_est = estimate_reward(o, act, t, available_ratio)
+            if not random_policy:
+                if policy == "contextual":
+                    update_thompson_params(act, r_est)
+                elif policy == "treebootstrap":
+                    update_treebootstrap_params(act, context, r_est)
 
             if act != "Postpone":
                 o.final_action = act
@@ -98,11 +101,20 @@ def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False):
                 else:
                     o.is_completed = True
 
-        # timestep 로그
-        # 현재 timestep 끝난 후 action_params의 mean 기록
         for a in ACTIONS:
             local_thompson_history[a]["timesteps"].append(t)
-            local_thompson_history[a]["mean"].append(action_params[a]["mean"])
+            if not random_policy:
+                if policy == "contextual":
+                    local_thompson_history[a]["mean"].append(action_params[a]["mean"])
+                elif policy == "treebootstrap":
+                    data = tree_data[a]
+                    if len(data["y"]) > 0:
+                        avg = sum(data["y"]) / len(data["y"])
+                        local_thompson_history[a]["mean"].append(avg)
+                    else:
+                        local_thompson_history[a]["mean"].append(0.5)
+            else:
+                local_thompson_history[a]["mean"].append(0.5)
 
         timestep_logs.append({
             "timestep": t,
@@ -110,7 +122,7 @@ def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False):
             "machine_status": dict(machine_status)
         })
 
-    # 생산 중인 주문이 남은 경우 finish_time 설정
+    # 남은 Accept 주문의 finish_time 처리
     for o in orders:
         if o.final_action == "Accept" and not o.is_completed:
             o.finish_time = num_timesteps

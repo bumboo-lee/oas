@@ -25,6 +25,8 @@ initial_orders_data = [
 ]
 
 def generate_orders():
+    random.seed(42)
+
     all_orders_data = []
     all_orders_data.extend(initial_orders_data)
 
