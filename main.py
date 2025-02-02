@@ -20,14 +20,14 @@ def run_policy(policy):
     orders = [Order(*row) for row in all_orders_data]
 
     if policy == "random":
-        print("랜덤 정책으로 시뮬레이션을 실행합니다.")
+        print("Random Policy Simulation")
         timestep_data, th_history = simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=True)
     elif policy == "contextual":
-        print("컨텍스트 밴딧 (Thompson Sampling) 정책으로 시뮬레이션을 실행합니다.")
+        print("Contextual Bandit (Thompson Sampling) Policy Simulation")
         timestep_data, th_history = simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False,
                                              policy="contextual")
     elif policy == "treebootstrap":
-        print("TreeBootstrap (논문 알고리즘) 정책으로 시뮬레이션을 실행합니다.")
+        print("TreeBootstrap Policy Simulation")
         timestep_data, th_history = simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False,
                                              policy="treebootstrap")
     else:
