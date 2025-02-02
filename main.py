@@ -87,13 +87,13 @@ def run_policy(policy):
     df_orders = pd.DataFrame(order_records)
     orders_csv = f"order_data_{policy}.csv"
     df_orders.to_csv(orders_csv, index=False)
-    print(f"{orders_csv} 파일이 저장되었습니다.")
+    print(f"Saved {orders_csv}")
 
     df_timesteps = pd.DataFrame(timestep_data)
     df_timesteps["machine_status"] = df_timesteps["machine_status"].apply(lambda x: str(x))
     timesteps_csv = f"timestep_data_{policy}.csv"
     df_timesteps.to_csv(timesteps_csv, index=False)
-    print(f"{timesteps_csv} 파일이 저장되었습니다.")
+    print(f"Saved {timesteps_csv}")
 
 
 def main():
