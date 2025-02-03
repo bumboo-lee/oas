@@ -21,7 +21,3 @@ CLAIM_PROB_PER_MODEL = {
     "55-EB40": 0.12,
     "60-EX40": 0.15,
 }
-
-def RISK_DISCOUNT_FACTOR(r):
-    # 기존 함수 – 이번 버전에서는 주문 결정 시 사용하지 않으므로 참조만 합니다.
-    return max(0.0, 1 - r/100)
