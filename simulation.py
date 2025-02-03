@@ -1,17 +1,13 @@
 import random
-from config import NUM_TIMESTEPS, MACHINE_CAPACITY
-from thompson_sampling import (
-    ACTIONS, action_params, thompson_sampling_select_action, update_thompson_params,
-    treebootstrap_select_action, update_treebootstrap_params, tree_data
-)
+from config import NUM_TIMESTEPS, MACHINE_CAPACITY, CLAIM_PROCESSING_COST, CLAIM_PROB_PER_MODEL
+from thompson_sampling import ACTIONS, action_params, thompson_sampling_select_action, update_thompson_params, treebootstrap_select_action, update_treebootstrap_params, tree_data
 from reward import estimate_reward
 
 def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False, policy="contextual"):
     """
     시뮬레이션 실행
-    return: (timestep_logs, th_history)
-        - timestep_logs: timestep별 로그
-        - th_history: {action: {"timesteps": [...], "mean": [...]}, ...}
+    return: (timestep_logs, th_history, total_claim_cost)
+           total_claim_cost: 모든 주문에서 실제 claim 발생 시 차감된 총 비용
     """
     local_thompson_history = {a: {"timesteps": [], "mean": []} for a in ACTIONS}
 
@@ -42,7 +38,7 @@ def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False, policy="c
                 fo_obj.finish_time = t
                 fo_obj.is_completed = True
 
-        # 의사결정이 필요한 주문 선정
+        # 의사결정 필요한 주문 선정
         decision_needed = []
         for o in orders:
             if o.is_completed:
@@ -69,15 +65,13 @@ def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False, policy="c
                     if act not in possible_acts:
                         act = random.choice(possible_acts)
                 elif policy == "treebootstrap":
-                    context = [t, available_ratio, o.order_date, o.decision_due_date,
-                               o.processing_time, o.due_date, o.revenue, o.risk]
+                    context = [t, available_ratio, o.order_date, o.decision_due_date, o.processing_time, o.due_date, o.revenue, o.risk]
                     act = treebootstrap_select_action(context)
                     if act not in possible_acts:
                         act = random.choice(possible_acts)
                 else:
                     act = random.choice(possible_acts)
 
-            # 머신 용량 체크
             if act == "Accept" and len(machine_status) >= MACHINE_CAPACITY:
                 if t >= o.decision_due_date:
                     act = "Reject"
@@ -122,10 +116,26 @@ def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False, policy="c
             "machine_status": dict(machine_status)
         })
 
-    # 남은 Accept 주문의 finish_time 처리
+    # 생산 중인 Accept 주문에 대해 finish_time 처리
     for o in orders:
         if o.final_action == "Accept" and not o.is_completed:
             o.finish_time = num_timesteps
             o.is_completed = True
 
-    return timestep_logs, local_thompson_history
+    # ------------------ Claim 시뮬레이션 후처리 ------------------
+    total_claim_cost = 0.0
+    # Accept 주문만 대상으로 claim 시뮬레이션 진행
+    for o in orders:
+        if o.final_action == "Accept" and o.finish_time is not None:
+            # model_name에 해당하는 현재 claim 확률을 조회
+            claim_prob = CLAIM_PROB_PER_MODEL.get(o.model_name, 0.0)
+            # 실제로 claim 이벤트가 발생하는지 확률적으로 결정
+            if random.random() < claim_prob:
+                total_claim_cost += CLAIM_PROCESSING_COST
+                # claim 발생 시, 해당 모델의 claim 확률을 약간 증가 (예: +0.01, 최대 1.0)
+                CLAIM_PROB_PER_MODEL[o.model_name] = min(1.0, claim_prob + 0.01)
+            else:
+                # claim이 발생하지 않으면, 확률을 약간 낮춤 (예: -0.005, 최소 0)
+                CLAIM_PROB_PER_MODEL[o.model_name] = max(0.0, claim_prob - 0.005)
+
+    return timestep_logs, local_thompson_history, total_claim_cost

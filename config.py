@@ -1,7 +1,27 @@
-NUM_TIMESTEPS = 500
-MACHINE_CAPACITY = 3
+# config.py
+NUM_TIMESTEPS = 100
+MACHINE_CAPACITY = 2
 OUTSOURCE_FRACTION = 0.7
 PENALTY = 30
 
+# claim 처리 비용 (예: 클레임 발생 시 차감할 비용)
+CLAIM_PROCESSING_COST = 500
+
+# 각 model_name별 초기 claim 발생 확률 (0~1)
+# 기존 risk 값 대신 이 확률을 사용하여 claim 이벤트를 시뮬레이션
+CLAIM_PROB_PER_MODEL = {
+    "15-EB11": 0.05,
+    "25-EX20": 0.10,
+    "30-EX20": 0.08,
+    "20-EB20": 0.13,
+    "35-EB10": 0.16,
+    "40-EX10": 0.07,
+    "45-EB30": 0.09,
+    "50-EX30": 0.10,
+    "55-EB40": 0.12,
+    "60-EX40": 0.15,
+}
+
 def RISK_DISCOUNT_FACTOR(r):
+    # 기존 함수 – 이번 버전에서는 주문 결정 시 사용하지 않으므로 참조만 합니다.
     return max(0.0, 1 - r/100)
