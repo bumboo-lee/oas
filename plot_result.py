@@ -121,3 +121,4 @@ def plot_gantt(orders, num_timesteps=100, title="Gantt Chart"):
 
     plt.tight_layout()
     plt.show()
+
