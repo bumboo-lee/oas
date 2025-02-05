@@ -1,11 +1,11 @@
 # config.py
-NUM_TIMESTEPS = 100
-MACHINE_CAPACITY = 2
-OUTSOURCE_FRACTION = 0.7
+NUM_TIMESTEPS = 200
+MACHINE_CAPACITY = 3
+OUTSOURCE_FRACTION = 0.6
 PENALTY = 30
 
 # claim 처리 비용 (예: 클레임 발생 시 차감할 비용)
-CLAIM_PROCESSING_COST = 500
+CLAIM_PROCESSING_COST = 150
 
 # 각 model_name별 초기 claim 발생 확률 (0~1)
 # 기존 risk 값 대신 이 확률을 사용하여 claim 이벤트를 시뮬레이션
