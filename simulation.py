@@ -3,7 +3,7 @@ from config import NUM_TIMESTEPS, MACHINE_CAPACITY, CLAIM_PROCESSING_COST, CLAIM
 from thompson_sampling import ACTIONS, action_params, thompson_sampling_select_action, update_thompson_params, treebootstrap_select_action, update_treebootstrap_params, tree_data
 from reward import estimate_reward
 
-def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False, policy="contextual"):
+def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False, policy="contextual", claim_callback=None):
     """
     시뮬레이션 실행
     return: (timestep_logs, th_history, total_claim_cost)
@@ -139,3 +139,4 @@ def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False, policy="c
                 CLAIM_PROB_PER_MODEL[o.model_name] = max(0.0, claim_prob - 0.005)
 
     return timestep_logs, local_thompson_history, total_claim_cost
+
