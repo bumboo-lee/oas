@@ -1,7 +1,7 @@
 from openai import OpenAI
 
 # API 키 설정
-client = OpenAI(api_key="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")
+client = OpenAI(api_key="Bearer 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")
 # print(client.fine_tuning.jobs.list(limit=2))
 
 # 모델 1: Claim 생성 모델 호출 예제

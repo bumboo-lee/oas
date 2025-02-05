@@ -1,7 +1,7 @@
 from openai import OpenAI
 import time
 
-client = OpenAI(api_key="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")
+client = OpenAI(api_key="Bearer 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")
 
 # 모델 1을 위한 Few-shot 파인튜닝 데이터셋 파일 (예: model1_claim_generation.jsonl)
 gen_model_file = "generate.jsonl"
@@ -62,4 +62,3 @@ while True:
     time.sleep(60)  # 1분마다 상태 체크
 
 print("Fine-tuning completed for both models.")
-

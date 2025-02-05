@@ -139,4 +139,3 @@ def simulate(orders, num_timesteps=NUM_TIMESTEPS, random_policy=False, policy="c
                 CLAIM_PROB_PER_MODEL[o.model_name] = max(0.0, claim_prob - 0.005)
 
     return timestep_logs, local_thompson_history, total_claim_cost
-

@@ -1,4 +1,3 @@
-# config.py
 NUM_TIMESTEPS = 200
 MACHINE_CAPACITY = 3
 OUTSOURCE_FRACTION = 0.6
@@ -10,7 +9,7 @@ CLAIM_PROCESSING_COST = 150
 # 각 model_name별 초기 claim 발생 확률 (0~1)
 # 기존 risk 값 대신 이 확률을 사용하여 claim 이벤트를 시뮬레이션
 CLAIM_PROB_PER_MODEL = {
-    "15-EB11": 0.05,
+    "15-EB11": 0.15,
     "25-EX20": 0.10,
     "30-EX20": 0.08,
     "20-EB20": 0.13,

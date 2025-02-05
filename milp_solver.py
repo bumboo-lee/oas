@@ -10,7 +10,7 @@ from reward import estimate_reward
 from plot_result import plot_gantt
 
 
-def solve_milp():
+def solve_milp(use_gpt_claim=True):
     orders_data = generate_orders()
     orders = [Order(*row) for row in orders_data]
     num_orders = len(orders)
@@ -25,7 +25,7 @@ def solve_milp():
         for a in ACTIONS:
             x[(i, a)] = pulp.LpVariable(f"x_{i}_{a}", cat="Binary")
         prob += pulp.lpSum([x[(i, a)] for a in ACTIONS]) == 1, f"OneAction_order_{i}"
-        # decision due date가 현재 시뮬레이션 내에 도달했다면 "Postpone" 옵션 배제
+        # decision due date 내에 반드시 action 선택하도록 Postpone 비허용
         if o.decision_due_date <= T:
             prob += x[(i, "Postpone")] == 0, f"DisallowPostpone_order_{i}"
 
@@ -99,7 +99,7 @@ def solve_milp():
             o.finish_time = chosen_start + o.processing_time
             calc_revenue = r_accept[(i, chosen_start)]
         elif chosen_action in ["Outsource", "Reject", "Postpone"]:
-            # 최소 1 타임스텝 바를 그리도록 order_date를 기준으로 설정
+            # 최소 1 타임스텝 표시
             o.start_time = o.order_date
             o.finish_time = o.order_date + 1
             if chosen_action == "Outsource":
@@ -113,7 +113,6 @@ def solve_milp():
             o.start_time = None
             o.finish_time = None
             calc_revenue = 0
-
         record = {
             "OrderNo": o.order_no,
             "OrderDate": o.order_date,
@@ -133,41 +132,46 @@ def solve_milp():
         }
         schedule_records.append(record)
 
-    # MILP 과정 중 Claim 후처리: Accept와 Outsource 주문에 대해 실시간 처리
     total_claim_cost = 0.0
-    from gpt_model.models import generate_claim, analysis_claim
-    for o in orders:
-        if o.final_action in ["Accept", "Outsource"]:
-            claim_prob = CLAIM_PROB_PER_MODEL.get(o.model_name, 0.0)
-            if random.random() < claim_prob:
-                total_claim_cost += CLAIM_PROCESSING_COST
-                CLAIM_PROB_PER_MODEL[o.model_name] = min(1.0, claim_prob + 0.01)
-                o.claim_occurred = True
-                prompt_gen = [{"role": "user",
-                               "content": "A claim Occurs. Generate a claim randomly. You must answer only about the claim. Exclude everything else from your response."}]
-                claim_text = generate_claim(prompt_gen)
-                prompt_analysis = [{"role": "user",
-                                    "content": f'You must respond strictly in the following format. Exclude everything else from your response:{{"Position": "your answer about defect position", "Cause": "your answer about defect cause"}}\n"Claim: {claim_text}'}]
-                analysis_text = analysis_claim(prompt_analysis)
-                if ";" in analysis_text:
-                    parts = analysis_text.split(";")
-                    cause = parts[0].replace("Cause:", "").strip() if "Cause:" in parts[0] else parts[0].strip()
-                    position = parts[1].replace("Position:", "").strip() if len(parts) > 1 and "Position:" in parts[
-                        1] else parts[1].strip()
+    if use_gpt_claim:
+        from gpt_model.models import generate_claim, analysis_claim
+        for o in orders:
+            if o.final_action in ["Accept", "Outsource"]:
+                claim_prob = CLAIM_PROB_PER_MODEL.get(o.model_name, 0.0)
+                if random.random() < claim_prob:
+                    total_claim_cost += CLAIM_PROCESSING_COST
+                    CLAIM_PROB_PER_MODEL[o.model_name] = min(1.0, claim_prob + 0.01)
+                    o.claim_occurred = True
+                    prompt_gen = [{"role": "user",
+                                   "content": "A claim Occurs. Generate a claim randomly. You must answer only about the claim. Exclude everything else from your response."}]
+                    claim_text = generate_claim(prompt_gen)
+                    prompt_analysis = [{"role": "user",
+                                        'content': f'You must respond strictly in the following format. Exclude everything else from your response:{{"Position": "your answer about defect position", "Cause": "your answer about defect cause"}}\nClaim: {claim_text}'}]
+                    analysis_text = analysis_claim(prompt_analysis)
+                    if ";" in analysis_text:
+                        parts = analysis_text.split(";")
+                        cause = parts[0].replace("Cause:", "").strip() if "Cause:" in parts[0] else parts[0].strip()
+                        position = parts[1].replace("Position:", "").strip() if len(parts) > 1 and "Position:" in parts[1] else parts[1].strip()
+                    else:
+                        cause = analysis_text
+                        position = ""
+                    o.claim = claim_text
+                    o.cause = cause
+                    o.position = position
                 else:
-                    cause = analysis_text
-                    position = ""
-                o.claim = claim_text
-                o.cause = cause
-                o.position = position
+                    CLAIM_PROB_PER_MODEL[o.model_name] = max(0.0, claim_prob - 0.005)
+                    o.claim_occurred = False
+                    o.claim = "N/A"
+                    o.cause = "N/A"
+                    o.position = "N/A"
             else:
-                CLAIM_PROB_PER_MODEL[o.model_name] = max(0.0, claim_prob - 0.005)
                 o.claim_occurred = False
                 o.claim = "N/A"
                 o.cause = "N/A"
                 o.position = "N/A"
-        else:
-            o.claim_occurred = False
+    else:
+        # GPT claim 처리를 사용하지 않을 경우
+        for o in orders:
             o.claim = "N/A"
             o.cause = "N/A"
             o.position = "N/A"
@@ -190,7 +194,5 @@ def solve_milp():
     print("order_data_milp.csv 파일이 저장되었습니다.")
     plot_gantt(orders, NUM_TIMESTEPS, title="MILP Policy - Gantt")
 
-
-def run_milp():
-    solve_milp()
-
+def run_milp(use_gpt_claim=True):
+    solve_milp(use_gpt_claim=use_gpt_claim)
