@@ -45,11 +45,13 @@ def run_simulation_policy(policy, use_gpt_claim=True):
     )
 
     total_claim_cost = 0.0
+    total_claim_cost = 0.0
     for o in orders:
         if o.final_action in ["Accept", "Outsource"]:
             if not hasattr(o, "claim"):
+                claim_prob = CLAIM_PROB_PER_MODEL.get(o.model_name, 0.0)
                 if use_gpt_claim:
-                    claim_prob = CLAIM_PROB_PER_MODEL.get(o.model_name, 0.0)
+                    # GPT claim 기능 사용: 실제 GPT 호출하여 claim 내용 생성 및 분석
                     if random.random() < claim_prob:
                         total_claim_cost += CLAIM_PROCESSING_COST
                         CLAIM_PROB_PER_MODEL[o.model_name] = min(1.0, claim_prob + 0.01)
@@ -62,11 +64,17 @@ def run_simulation_policy(policy, use_gpt_claim=True):
                         o.cause = "N/A"
                         o.position = "N/A"
                 else:
+                    # GPT claim 기능 미사용: 단순히 claim 발생 여부와 비용 반영, claim 관련 필드는 "N/A"
+                    if random.random() < claim_prob:
+                        total_claim_cost += CLAIM_PROCESSING_COST
+                        CLAIM_PROB_PER_MODEL[o.model_name] = min(1.0, claim_prob + 0.01)
+                        o.claim_occurred = True
+                    else:
+                        CLAIM_PROB_PER_MODEL[o.model_name] = max(0.0, claim_prob - 0.005)
+                        o.claim_occurred = False
                     o.claim = "N/A"
                     o.cause = "N/A"
                     o.position = "N/A"
-            else:
-                print(142)
         else:
             o.claim = "N/A"
             o.cause = "N/A"
