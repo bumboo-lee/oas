@@ -176,11 +176,5 @@ def main():
 
     run_policy(args.policy, use_gpt_claim=args.use_gpt_claim)
 
-    from config import CLAIM_PROB_PER_MODEL
-    print("\n최종 모델별 Claim 발생 확률:")
-    for model, prob in CLAIM_PROB_PER_MODEL.items():
-        print(f"{model}: {prob:.3f}")
-
-
 if __name__ == "__main__":
     main()
